@@ -33,6 +33,28 @@ public class TemperatureManager {
         playerTemperatures.put(player.getUniqueId(), Math.max(0.0, Math.min(50.0, temp)));
     }
 
+    public Breakdown getBreakdown(Player player) {
+        Location loc = player.getLocation();
+        World world = loc.getWorld();
+        
+        double seasonMod = 0.0;
+        if (world != null) {
+            Season season = plugin.getSeasonManager().getSeason(world);
+            switch (season) {
+                case SUMMER: seasonMod = 5.0; break;
+                case WINTER: seasonMod = -8.0; break;
+                case SPRING: seasonMod = 1.0; break;
+                case AUTUMN: seasonMod = -2.0; break;
+            }
+        }
+
+        double biomeMod = loc.getBlock().getTemperature() * 10.0 - 5.0;
+        double armorMod = getArmorTemperatureOffset(player);
+        double heatMod = isNearHeatSource(loc) ? 5.0 : 0.0;
+
+        return new Breakdown(seasonMod, biomeMod, armorMod, heatMod);
+    }
+
     public void updateTemperatures() {
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (player.hasPermission("seasons.bypass.temperature")) continue;
@@ -40,7 +62,6 @@ public class TemperatureManager {
             double targetTemp = calculateTargetTemperature(player);
             double currentTemp = getTemperature(player);
 
-            // Gradually adjust temperature towards target
             double diff = targetTemp - currentTemp;
             double change = Math.signum(diff) * Math.min(Math.abs(diff), 0.2);
             double newTemp = currentTemp + change;
@@ -57,7 +78,6 @@ public class TemperatureManager {
 
         double baseTemp = 37.0;
 
-        // Season modifier
         Season currentSeason = plugin.getSeasonManager().getSeason(world);
         switch (currentSeason) {
             case SUMMER: baseTemp += 5.0; break;
@@ -66,17 +86,14 @@ public class TemperatureManager {
             case AUTUMN: baseTemp -= 2.0; break;
         }
 
-        // Biome modifier
         double biomeTemp = loc.getBlock().getTemperature();
         baseTemp += (biomeTemp - 0.5) * 10.0;
 
-        // Time of day (colder at night)
         long time = world.getTime();
         if (time > 13000 && time < 23000) {
             baseTemp -= 3.0;
         }
 
-        // Underground heat / altitude cooling
         int y = loc.getBlockY();
         if (y < 60) {
             baseTemp += (60 - y) * 0.1;
@@ -84,12 +101,10 @@ public class TemperatureManager {
             baseTemp -= (y - 100) * 0.1;
         }
 
-        // Nearby heat sources
         if (isNearHeatSource(loc)) {
             baseTemp += 5.0;
         }
 
-        // Armor insulation
         baseTemp += getArmorTemperatureOffset(player);
 
         return baseTemp;
@@ -122,27 +137,24 @@ public class TemperatureManager {
             String name = type.name();
 
             if (name.contains("LEATHER")) {
-                offset += 0.5; // Warmer
+                offset += 0.5;
             } else if (name.contains("NETHERITE") || name.contains("DIAMOND")) {
                 offset += 0.3;
             } else if (name.contains("CHAINMAIL") || name.contains("IRON")) {
-                offset -= 0.2; // Cold metal
+                offset -= 0.2;
             }
         }
         return offset;
     }
 
     private void applyTemperatureEffects(Player player, double temp) {
-        // Freezing (Under 30°C)
         if (temp < 30.0) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 40, 0, false, false));
             if (temp < 25.0) {
                 player.damage(1.0);
                 player.sendMessage(ChatColor.RED + "You are freezing!");
             }
-        }
-        // Overheating (Over 42°C)
-        else if (temp > 42.0) {
+        } else if (temp > 42.0) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 40, 0, false, false));
             if (temp > 45.0) {
                 player.damage(1.0);
@@ -150,7 +162,6 @@ public class TemperatureManager {
             }
         }
 
-        // Apply attribute adjustments safely using compatibility fallback
         applyMovementModifier(player, temp);
     }
 
@@ -159,14 +170,10 @@ public class TemperatureManager {
             Attribute speedAttr = getSpeedAttribute();
             if (speedAttr == null || player.getAttribute(speedAttr) == null) return;
 
-            NamespacedKey key = new NamespacedKey(plugin, "temp_speed_mod");
-            
-            // Remove existing modifier
             player.getAttribute(speedAttr).getModifiers().stream()
                 .filter(m -> m.getName().equals("temp_speed_mod"))
                 .forEach(m -> player.getAttribute(speedAttr).removeModifier(m));
 
-            // Apply slow effect if freezing
             if (temp < 28.0) {
                 AttributeModifier mod = new AttributeModifier(
                     UUID.nameUUIDFromBytes("temp_speed_mod".getBytes()),
@@ -177,7 +184,6 @@ public class TemperatureManager {
                 player.getAttribute(speedAttr).addModifier(mod);
             }
         } catch (Exception ignored) {
-            // Silently ignore attribute modifier mismatch across Bukkit versions
         }
     }
 
@@ -190,6 +196,20 @@ public class TemperatureManager {
             } catch (IllegalArgumentException ex) {
                 return null;
             }
+        }
+    }
+
+    public static class Breakdown {
+        public final double season;
+        public final double biome;
+        public final double armor;
+        public final double heat;
+
+        public Breakdown(double season, double biome, double armor, double heat) {
+            this.season = season;
+            this.biome = biome;
+            this.armor = armor;
+            this.heat = heat;
         }
     }
 }

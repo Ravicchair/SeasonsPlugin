@@ -63,7 +63,7 @@ public class TemperatureManager {
             double targetTemp = bd.target();
             double currentTemp = bodyTemp(player);
 
-            // Core shift: move body temp toward environmental target smoothly
+            // Smooth body temperature transition toward environmental target
             double diff = targetTemp - currentTemp;
             if (Math.abs(diff) > 0.1) {
                 double change = Math.signum(diff) * Math.min(Math.abs(diff), 1.5);
@@ -105,7 +105,7 @@ public class TemperatureManager {
         double heightMod = (loc.getY() > 80) ? -((loc.getY() - 80) / 8.0) : 0.0;
         
         double armorMod = getArmorTemperatureOffset(player);
-        double heatMod = isNearHeatSource(loc) ? 25.0 : 0.0; // Campfire adds massive +25°C
+        double heatMod = isNearHeatSource(loc) ? 25.0 : 0.0;
         double wetMod = player.isInWaterOrRain() ? -8.0 : 0.0;
         double drinkMod = playerBuffs.getOrDefault(player.getUniqueId(), 0.0);
 
@@ -138,9 +138,9 @@ public class TemperatureManager {
             String name = item.getType().name();
 
             if (name.contains("LEATHER")) {
-                offset += 4.0; // +16°C warm boost for full leather set
+                offset += 4.0;
             } else if (name.contains("CHAINMAIL") || name.contains("IRON")) {
-                offset -= 2.5; // Iron pulls body temp down
+                offset -= 2.5;
             } else if (name.contains("DIAMOND") || name.contains("NETHERITE")) {
                 offset += 1.0;
             }
@@ -157,7 +157,7 @@ public class TemperatureManager {
 
         // Cold Threshold Effects (<36°C)
         if (bodyTemp < coldThreshold()) {
-            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0, false, false));
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 0, false, false));
         } 
         // Hot Threshold Effects (>39°C)
         else if (bodyTemp > hotThreshold()) {

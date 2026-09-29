@@ -1,102 +1,84 @@
 package dev.seasons;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextComponent;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.ChatColor;
+import org.bukkit.World;
 import org.bukkit.command.Command;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.TabExecutor;
+import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+public class SeasonCommand implements CommandExecutor {
 
-public final class SeasonCommand implements TabExecutor {
     private final SeasonsPlugin plugin;
     private final SeasonManager seasons;
-    private final HudManager hud;
 
-    public SeasonCommand(SeasonsPlugin plugin, SeasonManager seasons, HudManager hud) {
+    public SeasonCommand(SeasonsPlugin plugin, SeasonManager seasons) {
         this.plugin = plugin;
         this.seasons = seasons;
-        this.hud = hud;
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0 || args[0].equalsIgnoreCase("info")) {
-            info(sender);
-            return true;
-        }
-        if (!sender.hasPermission("seasons.admin")) {
-            sender.sendMessage(Util.prefixed("You don't have permission to do that.", NamedTextColor.RED));
+            World world = (sender instanceof Player) ? ((Player) sender).getWorld() : plugin.getServer().getWorlds().get(0);
+            Season current = seasons.getSeason(world);
+            int day = seasons.getDay(world);
+            int length = seasons.getDaysPerSeason(world);
+
+            sender.sendMessage(ChatColor.GOLD + "=== Season Status ===");
+            sender.sendMessage(ChatColor.YELLOW + "Current Season: " + ChatColor.GREEN + current.name());
+            sender.sendMessage(ChatColor.YELLOW + "Day: " + ChatColor.WHITE + day + " / " + length);
             return true;
         }
 
-        switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "set" -> {
-                Season s = args.length > 1 ? Season.parse(args[1], null) : null;
-                if (s == null) {
-                    sender.sendMessage(Util.prefixed("Usage: /season set <spring|summer|autumn|winter>", NamedTextColor.GRAY));
-                } else {
-                    seasons.setSeason(s);
-                    sender.sendMessage(Util.prefixed("It is now the start of " + s.displayName() + ".", NamedTextColor.GREEN));
-                }
+        if (args[0].equalsIgnoreCase("set")) {
+            if (!sender.hasPermission("seasons.admin")) {
+                sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                return true;
             }
-            case "skip" -> {
-                int days;
+            if (args.length < 2) {
+                sender.sendMessage(ChatColor.RED + "Usage: /season set <spring|summer|autumn|winter>");
+                return true;
+            }
+
+            try {
+                Season season = Season.valueOf(args[1].toUpperCase());
+                World world = (sender instanceof Player) ? ((Player) sender).getWorld() : plugin.getServer().getWorlds().get(0);
+                seasons.setSeason(world, season, 1);
+                sender.sendMessage(ChatColor.GREEN + "Set season in " + world.getName() + " to " + season.name() + ".");
+            } catch (IllegalArgumentException e) {
+                sender.sendMessage(ChatColor.RED + "Invalid season! Choose spring, summer, autumn, or winter.");
+            }
+            return true;
+        }
+
+        if (args[0].equalsIgnoreCase("skip")) {
+            if (!sender.hasPermission("seasons.admin")) {
+                sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                return true;
+            }
+            int days = 1;
+            if (args.length > 1) {
                 try {
-                    days = args.length > 1 ? Integer.parseInt(args[1]) : 0;
-                } catch (NumberFormatException ex) {
-                    days = 0;
-                }
-                if (days == 0) {
-                    sender.sendMessage(Util.prefixed("Usage: /season skip <days>", NamedTextColor.GRAY));
-                } else {
-                    seasons.skipDays(days);
-                    sender.sendMessage(Util.prefixed("Skipped " + days + " day(s). It is now "
-                            + seasons.season().displayName() + ", day " + seasons.dayOfSeason() + ".", NamedTextColor.GREEN));
-                }
+                    days = Integer.parseInt(args[1]);
+                } catch (NumberFormatException ignored) {}
             }
-            case "reload" -> {
-                plugin.reloadAll();
-                sender.sendMessage(Util.prefixed("Configuration reloaded.", NamedTextColor.GREEN));
-            }
-            default -> sender.sendMessage(Util.prefixed("Usage: /season [info|set <season>|skip <days>|reload]", NamedTextColor.GRAY));
+            seasons.skipDays(days);
+            sender.sendMessage(ChatColor.GREEN + "Skipped " + days + " day(s).");
+            return true;
         }
+
+        if (args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("seasons.admin")) {
+                sender.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                return true;
+            }
+            plugin.reloadAll();
+            sender.sendMessage(ChatColor.GREEN + "Seasons configuration reloaded!");
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.RED + "Unknown sub-command. Use /season <info|set|skip|reload>");
         return true;
-    }
-
-    private void info(CommandSender sender) {
-        Season s = seasons.season();
-        TextComponent.Builder title = Component.text();
-        title.append(Component.text(s.symbol() + " " + s.displayName(), s.color(), TextDecoration.BOLD));
-        title.append(Component.text("  Day " + seasons.dayOfSeason() + "/" + seasons.seasonLength()
-                + " \u2022 " + seasons.monthName(), NamedTextColor.GRAY));
-        sender.sendMessage(title.build());
-
-        int left = seasons.daysUntilNextSeason();
-        sender.sendMessage(Component.text(s.next().displayName() + " arrives in " + left + (left == 1 ? " day." : " days."),
-                NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("Seasonal base temperature: " + hud.fmt(seasons.baseTemperature()),
-                NamedTextColor.GRAY));
-        if (seasons.isFreezePeriod()) {
-            sender.sendMessage(Component.text("It's mid-winter: lakes and rivers are freezing over.", NamedTextColor.AQUA));
-        }
-    }
-
-    @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        boolean admin = sender.hasPermission("seasons.admin");
-        if (args.length == 1) {
-            List<String> base = new ArrayList<>(List.of("info"));
-            if (admin) base.addAll(List.of("set", "skip", "reload"));
-            return Util.filter(base, args[0]);
-        }
-        if (args.length == 2 && admin && args[0].equalsIgnoreCase("set")) {
-            return Util.filter(List.of("spring", "summer", "autumn", "winter"), args[1]);
-        }
-        return List.of();
     }
 }

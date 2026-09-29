@@ -63,7 +63,7 @@ public class TemperatureManager {
             double targetTemp = 37.0 + bd.target();
             double currentTemp = bodyTemp(player);
 
-            // Accelerated shift: body temperature rapidly adjusts to environmental target
+            // Fast body temperature shift toward target
             double diff = targetTemp - currentTemp;
             double change = Math.signum(diff) * Math.min(Math.abs(diff), 1.5);
             double newTemp = currentTemp + change;
@@ -88,7 +88,7 @@ public class TemperatureManager {
 
         double seasonMod = 0.0;
         if (world != null && seasonManager != null) {
-            Season season = getSeasonSafely(world);
+            Season season = seasonManager.getSeason(world);
             if (season != null) {
                 switch (season) {
                     case SUMMER: seasonMod = 18.0; break;
@@ -101,30 +101,11 @@ public class TemperatureManager {
 
         double biomeMod = (loc.getBlock().getTemperature() - 0.5) * 15.0;
         double armorMod = getArmorTemperatureOffset(player);
-        double heatMod = isNearHeatSource(loc) ? 20.0 : 0.0; // Campfire massively boosts heat
+        double heatMod = isNearHeatSource(loc) ? 20.0 : 0.0; // Campfire boost
         double wetMod = player.isInWaterOrRain() ? -8.0 : 0.0;
         double drinkMod = playerBuffs.getOrDefault(player.getUniqueId(), 0.0);
 
         return new Breakdown(seasonMod, biomeMod, armorMod, heatMod, wetMod, drinkMod);
-    }
-
-    private Season getSeasonSafely(World world) {
-        try {
-            java.lang.reflect.Method m = seasonManager.getClass().getMethod("getSeason", World.class);
-            return (Season) m.invoke(seasonManager, world);
-        } catch (Exception e1) {
-            try {
-                java.lang.reflect.Method m = seasonManager.getClass().getMethod("getCurrentSeason", World.class);
-                return (Season) m.invoke(seasonManager, world);
-            } catch (Exception e2) {
-                try {
-                    java.lang.reflect.Method m = seasonManager.getClass().getMethod("getSeason");
-                    return (Season) m.invoke(seasonManager);
-                } catch (Exception e3) {
-                    return Season.SPRING;
-                }
-            }
-        }
     }
 
     private boolean isNearHeatSource(Location loc) {
@@ -153,11 +134,11 @@ public class TemperatureManager {
             String name = item.getType().name();
 
             if (name.contains("LEATHER")) {
-                offset += 4.0; // Strong insulation against cold
+                offset += 4.0;
             } else if (name.contains("NETHERITE") || name.contains("DIAMOND")) {
                 offset += 2.0;
             } else if (name.contains("CHAINMAIL") || name.contains("IRON")) {
-                offset -= 3.0; // Cold metal pulls body temp down
+                offset -= 3.0;
             }
         }
         return offset;
@@ -167,16 +148,13 @@ public class TemperatureManager {
         PotionEffectType slowEffect = PotionEffectType.getByName("SLOWNESS");
         PotionEffectType weakEffect = PotionEffectType.getByName("WEAKNESS");
 
-        // Cold effects start under 36.0°C
         if (temp < coldThreshold()) {
             if (slowEffect != null) player.addPotionEffect(new PotionEffect(slowEffect, 60, 0, false, false));
             if (temp < 30.0) {
                 player.damage(1.0);
                 player.sendMessage(ChatColor.RED + "You are freezing!");
             }
-        } 
-        // Heat effects start over 39.0°C
-        else if (temp > hotThreshold()) {
+        } else if (temp > hotThreshold()) {
             if (weakEffect != null) player.addPotionEffect(new PotionEffect(weakEffect, 60, 0, false, false));
             if (temp > 44.0) {
                 player.damage(1.0);

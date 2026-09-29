@@ -34,7 +34,8 @@ public class TemperatureManager {
     }
 
     public void setTemperature(Player player, double temp) {
-        playerTemperatures.put(player.getUniqueId(), Math.max(-20.0, Math.min(60.0, temp)));
+        // Body temperature can safely range between 15°C and 50°C
+        playerTemperatures.put(player.getUniqueId(), Math.max(15.0, Math.min(50.0, temp)));
     }
 
     public double coldThreshold() { return 36.0; }
@@ -63,11 +64,11 @@ public class TemperatureManager {
             double targetTemp = bd.target();
             double currentTemp = bodyTemp(player);
 
-            // Smooth body temperature transition toward environmental target
+            // Shift body temperature toward target by 0.5°C per second
             double diff = targetTemp - currentTemp;
-            if (Math.abs(diff) > 0.1) {
-                double change = Math.signum(diff) * Math.min(Math.abs(diff), 1.5);
-                currentTemp += change;
+            if (Math.abs(diff) > 0.05) {
+                double step = Math.copySign(Math.min(Math.abs(diff), 0.5), diff);
+                currentTemp += step;
                 setTemperature(player, currentTemp);
             }
 
@@ -93,27 +94,31 @@ public class TemperatureManager {
             Season season = seasonManager.getSeason(world);
             if (season != null) {
                 switch (season) {
-                    case SUMMER: seasonMod = 15.0; break;
-                    case SPRING: seasonMod = 5.0; break;
-                    case AUTUMN: seasonMod = -10.0; break;
-                    case WINTER: seasonMod = -25.0; break;
+                    case SUMMER: seasonMod = 6.0; break;
+                    case SPRING: seasonMod = 2.0; break;
+                    case AUTUMN: seasonMod = -6.0; break;
+                    case WINTER: seasonMod = -18.0; break;
                 }
             }
         }
 
-        double biomeMod = (loc.getBlock().getTemperature() - 0.5) * 15.0;
-        double heightMod = (loc.getY() > 80) ? -((loc.getY() - 80) / 8.0) : 0.0;
+        // Biome base temp calculation:
+        // Vanilla biomes: Plains/Forest (~0.7-0.8), Desert/Mesa (2.0)
+        double rawBiome = loc.getBlock().getTemperature();
+        double biomeMod = (rawBiome - 0.5) * 10.0; // Mesa/Desert becomes ~+15°C
+
+        double heightMod = (loc.getY() > 80) ? -((loc.getY() - 80) / 10.0) : 0.0;
         
         double armorMod = getArmorTemperatureOffset(player);
-        double heatMod = isNearHeatSource(loc) ? 25.0 : 0.0;
-        double wetMod = player.isInWaterOrRain() ? -8.0 : 0.0;
+        double heatMod = isNearHeatSource(loc) ? 15.0 : 0.0;
+        double wetMod = player.isInWaterOrRain() ? -6.0 : 0.0;
         double drinkMod = playerBuffs.getOrDefault(player.getUniqueId(), 0.0);
 
         return new Breakdown(seasonMod + biomeMod + heightMod, armorMod, heatMod, wetMod, drinkMod);
     }
 
     private boolean isNearHeatSource(Location loc) {
-        int radius = 5;
+        int radius = 4;
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
@@ -138,31 +143,31 @@ public class TemperatureManager {
             String name = item.getType().name();
 
             if (name.contains("LEATHER")) {
-                offset += 4.0;
+                offset += 3.0; // +12°C total for full leather set
             } else if (name.contains("CHAINMAIL") || name.contains("IRON")) {
-                offset -= 2.5;
+                offset -= 1.5;
             } else if (name.contains("DIAMOND") || name.contains("NETHERITE")) {
-                offset += 1.0;
+                offset += 0.5;
             }
         }
         return offset;
     }
 
     private void applyEffects(Player player, double bodyTemp, double ambientTemp) {
-        // Extreme Cold Damage (-15°C outside or lower)
+        // Freezing damage when ambient temperature drops to -15°C or lower
         if (ambientTemp <= -15.0 || bodyTemp <= 20.0) {
             player.damage(1.0);
             player.sendMessage(ChatColor.RED + "You are freezing due to extreme cold!");
         }
 
-        // Cold Threshold Effects (<36°C)
+        // Cold Threshold (<36°C) -> Slowness
         if (bodyTemp < coldThreshold()) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 0, false, false));
         } 
-        // Hot Threshold Effects (>39°C)
+        // Hot Threshold (>39°C) -> Hunger / Overheating
         else if (bodyTemp > hotThreshold()) {
             player.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, 60, 0, false, false));
-            if (bodyTemp > 45.0) {
+            if (bodyTemp > 44.0) {
                 player.damage(1.0);
                 player.sendMessage(ChatColor.RED + "You are overheating!");
             }
@@ -184,11 +189,13 @@ public class TemperatureManager {
             this.drinkMod = drinkMod;
         }
 
-        public double outside() { return 37.0 + environmentMod; }
+        public double outside() { return 25.0 + environmentMod; }
         public double armor() { return armorMod; }
         public double sources() { return heatMod; }
         public double wet() { return wetMod; }
         public double drink() { return drinkMod; }
+        
+        // Target body temperature based on factors:
         public double target() { return outside() + armorMod + heatMod + wetMod + drinkMod; }
     }
 }

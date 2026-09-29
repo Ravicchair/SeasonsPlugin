@@ -67,10 +67,8 @@ public class SeasonManager {
                 k -> new SeasonState(Season.SPRING, 1, plugin.getConfig().getInt("days-per-season", 7))
             );
 
-            // Check Minecraft time advancement (24000 ticks = 1 Minecraft day)
             long time = world.getTime();
             if (time >= 0 && time < 20) { 
-                // Increments at dawn
                 advanceDay(world, state);
             }
         }
@@ -85,6 +83,8 @@ public class SeasonManager {
         }
         saveData();
     }
+
+    // --- Core API ---
 
     public Season getSeason(World world) {
         if (world == null) return Season.SPRING;
@@ -113,5 +113,97 @@ public class SeasonManager {
         state.currentSeason = season;
         state.dayInSeason = day;
         saveData();
+    }
+
+    // --- Compatibility Methods (Fixes all 32 compilation errors in screenshots) ---
+
+    public boolean isActiveWorld(World world) {
+        return world != null && world.getEnvironment() == World.Environment.NORMAL;
+    }
+
+    public Season season(World world) {
+        return getSeason(world);
+    }
+
+    public Season season() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return getSeason(defaultWorld);
+    }
+
+    public int dayOfSeason(World world) {
+        return getDay(world);
+    }
+
+    public int dayOfSeason() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return getDay(defaultWorld);
+    }
+
+    public int seasonLength(World world) {
+        return getDaysPerSeason(world);
+    }
+
+    public int seasonLength() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return getDaysPerSeason(defaultWorld);
+    }
+
+    public double progress(World world) {
+        int day = getDay(world);
+        int total = getDaysPerSeason(world);
+        return (double) day / Math.max(1, total);
+    }
+
+    public double progress() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return progress(defaultWorld);
+    }
+
+    public void setSeason(Season season) {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        if (defaultWorld != null) {
+            setSeason(defaultWorld, season, 1);
+        }
+    }
+
+    public void skipDays(int days) {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        if (defaultWorld != null) {
+            SeasonState state = worldSeasons.computeIfAbsent(
+                defaultWorld.getUID(), 
+                k -> new SeasonState(Season.SPRING, 1, plugin.getConfig().getInt("days-per-season", 7))
+            );
+            for (int i = 0; i < days; i++) {
+                advanceDay(defaultWorld, state);
+            }
+        }
+    }
+
+    public String monthName() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        Season s = getSeason(defaultWorld);
+        return s.name().substring(0, 1) + s.name().substring(1).toLowerCase();
+    }
+
+    public int daysUntilNextSeason() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return getDaysPerSeason(defaultWorld) - getDay(defaultWorld) + 1;
+    }
+
+    public double baseTemperature() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        Season s = getSeason(defaultWorld);
+        switch (s) {
+            case SUMMER: return 32.0;
+            case SPRING: return 23.5; // Spring base around 20°C - 27°C
+            case AUTUMN: return 14.0;
+            case WINTER: return -2.0;
+            default: return 20.0;
+        }
+    }
+
+    public boolean isFreezePeriod() {
+        World defaultWorld = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        return getSeason(defaultWorld) == Season.WINTER;
     }
 }

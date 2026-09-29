@@ -41,14 +41,27 @@ public final class SeasonsPlugin extends JavaPlugin {
         bind("season", new SeasonCommand(this, seasons, hud));
         bind("temperature", new TemperatureCommand(temperatures, hud));
 
+        // Core tick loop running every 20 ticks (1 second)
         Bukkit.getScheduler().runTaskTimer(this, () -> {
-            temperatures.tickAll();
-            hud.updateAll();
-            worldEffects.tickSecond();
-        }, 40L, 20L);
-        Bukkit.getScheduler().runTaskTimer(this, worldEffects::tickWeather, 1200L, 1200L);
-        Bukkit.getScheduler().runTaskTimer(this, worldEffects::tickParticles, 40L, 10L);
-        Bukkit.getScheduler().runTaskTimer(this, worldEffects::processQueue, 40L, 1L);
+            if (temperatures != null) temperatures.tickAll();
+            if (hud != null) hud.updateAll();
+            if (worldEffects != null) worldEffects.tickSecond();
+        }, 20L, 20L);
+
+        // Weather check every 60 seconds
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (worldEffects != null) worldEffects.tickWeather();
+        }, 1200L, 1200L);
+
+        // Ambient particles every half second
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (worldEffects != null) worldEffects.tickParticles();
+        }, 40L, 10L);
+
+        // World/block queue processing every tick
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (worldEffects != null) worldEffects.processQueue();
+        }, 20L, 1L);
 
         getLogger().info("Seasons enabled. Current season: " + seasons.season().displayName()
                 + " (day " + seasons.dayOfSeason() + "/" + seasons.seasonLength() + ")");
@@ -65,12 +78,12 @@ public final class SeasonsPlugin extends JavaPlugin {
 
     public void reloadAll() {
         reloadConfig();
-        seasons.reload();
-        temperatures.reload();
-        hud.reload();
-        worldEffects.reload();
-        ecology.reload();
-        drinks.reload();
+        if (seasons != null) seasons.reload();
+        if (temperatures != null) temperatures.reload();
+        if (hud != null) hud.reload();
+        if (worldEffects != null) worldEffects.reload();
+        if (ecology != null) ecology.reload();
+        if (drinks != null) drinks.reload();
     }
 
     private void bind(String name, TabExecutor executor) {
@@ -85,6 +98,9 @@ public final class SeasonsPlugin extends JavaPlugin {
 
     private void loadData() {
         dataFile = new File(getDataFolder(), "data.yml");
+        if (!dataFile.exists()) {
+            saveResource("data.yml", false);
+        }
         data = YamlConfiguration.loadConfiguration(dataFile);
     }
 
@@ -94,7 +110,9 @@ public final class SeasonsPlugin extends JavaPlugin {
 
     public void saveData() {
         try {
-            data.save(dataFile);
+            if (data != null && dataFile != null) {
+                data.save(dataFile);
+            }
         } catch (IOException ex) {
             getLogger().warning("Could not save data.yml: " + ex.getMessage());
         }

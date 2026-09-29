@@ -88,7 +88,7 @@ public class TemperatureManager {
 
         double seasonMod = 0.0;
         if (world != null && seasonManager != null) {
-            Season season = seasonManager.getSeason(world);
+            Season season = getSeasonSafely(world);
             if (season != null) {
                 switch (season) {
                     case SUMMER: seasonMod = 18.0; break;
@@ -106,6 +106,25 @@ public class TemperatureManager {
         double drinkMod = playerBuffs.getOrDefault(player.getUniqueId(), 0.0);
 
         return new Breakdown(seasonMod, biomeMod, armorMod, heatMod, wetMod, drinkMod);
+    }
+
+    private Season getSeasonSafely(World world) {
+        try {
+            java.lang.reflect.Method m = seasonManager.getClass().getMethod("getSeason", World.class);
+            return (Season) m.invoke(seasonManager, world);
+        } catch (Exception e1) {
+            try {
+                java.lang.reflect.Method m = seasonManager.getClass().getMethod("getCurrentSeason", World.class);
+                return (Season) m.invoke(seasonManager, world);
+            } catch (Exception e2) {
+                try {
+                    java.lang.reflect.Method m = seasonManager.getClass().getMethod("getSeason");
+                    return (Season) m.invoke(seasonManager);
+                } catch (Exception e3) {
+                    return Season.SPRING;
+                }
+            }
+        }
     }
 
     private boolean isNearHeatSource(Location loc) {

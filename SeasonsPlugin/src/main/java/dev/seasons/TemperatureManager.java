@@ -96,17 +96,17 @@ public class TemperatureManager {
             Season season = seasonManager.getSeason(world);
             if (season != null) {
                 switch (season) {
-                    case SUMMER: seasonMod = 10.0; break;
-                    case SPRING: seasonMod = 2.0; break;
-                    case AUTUMN: seasonMod = -8.0; break;
-                    case WINTER: seasonMod = -22.0; break;
+                    case SUMMER: seasonMod = 8.0; break;   // Deserts hit 40°C - 48°C
+                    case SPRING: seasonMod = -1.0; break;  // Spring sits at 20°C - 27°C
+                    case AUTUMN: seasonMod = -6.0; break;  // Mild cool
+                    case WINTER: seasonMod = -22.0; break; // Sub-zero winter
                 }
             }
         }
 
         // Biome temperature mapping (Plains: ~0.8, Desert/Mesa: 2.0, Snow/Ice Spikes: 0.0)
         double rawBiome = loc.getBlock().getTemperature();
-        double biomeMod = (rawBiome - 0.5) * 20.0; // Snow/Ice biomes drop outside temp down to -10°C base
+        double biomeMod = (rawBiome - 0.5) * 20.0;
 
         // Height factor (colder high up)
         double heightMod = (loc.getY() > 80) ? -((loc.getY() - 80) / 6.0) : 0.0;

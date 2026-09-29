@@ -1,7 +1,9 @@
 package dev.seasons;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.EnumMap;
@@ -49,7 +51,7 @@ public final class SeasonManager {
     }
 
     public boolean isActiveWorld(World w) {
-        return w != null && w.getEnvironment() == World.Environment.NORMAL && enabledWorlds.contains(w.getName());
+        return w != null && w.getEnvironment() == World.Environment.NORMAL && (enabledWorlds.isEmpty() || enabledWorlds.contains(w.getName()));
     }
 
     private World clockWorld() {
@@ -85,6 +87,15 @@ public final class SeasonManager {
         return Season.values()[(int) (wrapped() / seasonTicks())];
     }
 
+    // Direct compatibility bridge method for TemperatureManager
+    public Season getSeason(World world) {
+        return season();
+    }
+
+    public Season getSeason() {
+        return season();
+    }
+
     /** 0.0 at the start of the season, approaching 1.0 at its end. */
     public double progress() {
         return (wrapped() % seasonTicks()) / (double) seasonTicks();
@@ -113,14 +124,14 @@ public final class SeasonManager {
     public double baseTemperature() {
         Season s = season();
         double p = progress();
-        double cur = baseTemps.get(s);
+        double cur = baseTemps.getOrDefault(s, 15.0);
         if (p < 0.2) {
             double w = 0.5 + 2.5 * p;
-            return baseTemps.get(s.previous()) * (1.0 - w) + cur * w;
+            return baseTemps.getOrDefault(s.previous(), 15.0) * (1.0 - w) + cur * w;
         }
         if (p > 0.8) {
             double w = 0.5 + 2.5 * (1.0 - p);
-            return baseTemps.get(s.next()) * (1.0 - w) + cur * w;
+            return baseTemps.getOrDefault(s.next(), 15.0) * (1.0 - w) + cur * w;
         }
         return cur;
     }
@@ -143,5 +154,17 @@ public final class SeasonManager {
     private void saveOffset() {
         plugin.getData().set("day-offset", dayOffset);
         plugin.saveData();
+    }
+
+    /** Snow & Ice melting logic when entering Spring/Summer */
+    public void meltSnowAroundBlock(Block b) {
+        Season s = season();
+        if (s == Season.SPRING || s == Season.SUMMER) {
+            if (b.getType() == Material.SNOW) {
+                b.setType(Material.AIR);
+            } else if (b.getType() == Material.ICE) {
+                b.setType(Material.WATER);
+            }
+        }
     }
 }

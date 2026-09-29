@@ -1,7 +1,12 @@
 package dev.seasons;
 
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
+import java.io.IOException;
 
 public final class SeasonsPlugin extends JavaPlugin {
 
@@ -9,15 +14,19 @@ public final class SeasonsPlugin extends JavaPlugin {
     private TemperatureManager temperatureManager;
     private HudManager hudManager;
 
+    private File dataFile;
+    private FileConfiguration dataConfig;
+
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        loadDataFile();
 
         this.seasonManager = new SeasonManager(this);
         this.temperatureManager = new TemperatureManager(this, seasonManager);
         this.hudManager = new HudManager(this, seasonManager, temperatureManager);
 
-        // Register Command Executors (Pass 'this' first as SeasonsPlugin)
+        // Register Command Executors
         if (getCommand("temperature") != null) {
             getCommand("temperature").setExecutor(new TemperatureCommand(this, temperatureManager));
         }
@@ -40,7 +49,44 @@ public final class SeasonsPlugin extends JavaPlugin {
         if (hudManager != null) {
             hudManager.shutdown();
         }
+        saveData();
     }
+
+    // --- Data File Management (Fixes getData() and saveData() errors) ---
+
+    private void loadDataFile() {
+        dataFile = new File(getDataFolder(), "data.yml");
+        if (!dataFile.exists()) {
+            dataFile.getParentFile().mkdirs();
+            saveResource("data.yml", false);
+        }
+        dataConfig = YamlConfiguration.loadConfiguration(dataFile);
+    }
+
+    public FileConfiguration getData() {
+        if (dataConfig == null) {
+            loadDataFile();
+        }
+        return dataConfig;
+    }
+
+    public void saveData() {
+        if (dataConfig == null || dataFile == null) return;
+        try {
+            dataConfig.save(dataFile);
+        } catch (IOException e) {
+            getLogger().severe("Could not save data.yml: " + e.getMessage());
+        }
+    }
+
+    public void reloadAll() {
+        reloadConfig();
+        loadDataFile();
+        if (temperatureManager != null) temperatureManager.reload();
+        if (hudManager != null) hudManager.reload();
+    }
+
+    // --- Getters ---
 
     public SeasonManager getSeasonManager() {
         return seasonManager;

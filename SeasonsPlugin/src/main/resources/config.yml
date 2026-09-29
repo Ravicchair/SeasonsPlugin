@@ -1,0 +1,156 @@
+# ---------------------------------------------------------------------------
+# Seasons - configuration (Paper 26.2)
+# Run /season reload after editing.
+# ---------------------------------------------------------------------------
+
+# Worlds where seasons and temperature are active. Only normal (overworld-type)
+# worlds are supported; the Nether and End are ignored even if listed.
+enabled-worlds:
+  - world
+
+calendar:
+  # World whose clock drives the calendar (sleeping through the night also advances it).
+  world: world
+  # Length of each season in Minecraft days (1 day = 20 real minutes).
+  # 28 days = ~9.3 real hours per season, ~37 hours per full year.
+  season-length-days: 28
+  # The season the world is in at day 0. The year is: spring, summer, autumn, winter.
+  start-season: SPRING
+  # Water freezes during this part of winter (fractions of winter, 0.0 - 1.0).
+  # 0.25 - 0.75 is the middle half of winter, i.e. "January".
+  freeze-start: 0.25
+  freeze-end: 0.75
+
+temperature:
+  unit: CELSIUS            # CELSIUS or FAHRENHEIT (display only)
+  # Outside temperature by season (degrees C). Transitions blend smoothly.
+  base:
+    spring: 15.0
+    summer: 30.0
+    autumn: 13.0
+    winter: -3.0
+  # How quickly your body temperature follows the target (fraction per second).
+  responsiveness: 0.08
+  night-drop: 6.0           # degrees lost at midnight (doubled in desert/badlands)
+  altitude-start: 90        # above this Y level it gets colder
+  altitude-per-block: 0.05
+  rain-cooling: 3.0         # open-sky rain / snow storm
+  water-modifier: -8.0      # standing in water: cools you in summer, chills you in winter
+  # Armor warms you. Each armor point (the bar above your hunger) adds this much.
+  armor-per-point: 0.6
+  armor-max: 14.0
+  # Added together for every biome whose name contains the keyword.
+  biome-keywords:
+    desert: 14.0
+    badlands: 10.0
+    savanna: 5.0
+    jungle: 4.0
+    swamp: 1.0
+    snowy: -14.0
+    frozen: -14.0
+    ice_spikes: -16.0
+    taiga: -4.0
+    cold: -3.0
+    warm: 3.0
+  # Exact biome names (without "minecraft:").
+  biome-exact:
+    grove: -10.0
+    jagged_peaks: -12.0
+  effects:
+    # Below this body temperature you move slower.
+    cold-threshold: 0.0
+    cold-range: 15.0        # slowdown reaches its maximum this many degrees below the threshold
+    max-slow: 0.20          # 0.20 = up to 20% slower
+    # Above this body temperature you get hungry faster.
+    hot-threshold: 34.0
+    hot-range: 12.0
+    max-hot-exhaustion: 0.02  # extra exhaustion per second at maximum heat (4.0 = one hunger point)
+    affect-creative: false
+  sources:
+    radius: 3
+    max-heat: 20.0
+    max-cold: 12.0
+    # Positive = warms you, negative = cools you. Strength fades with distance.
+    # Furnaces and campfires only count while lit.
+    values:
+      CAMPFIRE: 10.0
+      SOUL_CAMPFIRE: 8.0
+      FURNACE: 6.0
+      BLAST_FURNACE: 7.0
+      SMOKER: 5.0
+      FIRE: 5.0
+      SOUL_FIRE: 3.0
+      LAVA: 12.0
+      MAGMA_BLOCK: 4.0
+      TORCH: 0.8
+      WALL_TORCH: 0.8
+      LANTERN: 1.2
+      ICE: -3.0
+      PACKED_ICE: -4.0
+      BLUE_ICE: -5.0
+      SNOW_BLOCK: -2.0
+      POWDER_SNOW: -3.0
+
+hud:
+  # SIDEBAR (right side of the screen), ACTIONBAR, or OFF. Players can change it
+  # with /temperature hud <mode>. If another plugin already owns a player's
+  # scoreboard, the HUD falls back to the action bar for that player.
+  default-mode: SIDEBAR
+
+weather:
+  control-enabled: true
+  # Checked once per minute. "start" = chance per minute that rain/snow begins
+  # while it is clear; "end" = chance per minute that it stops.
+  # In winter, storms fall as snow (snow layers build up, lakes freeze in mid-winter).
+  seasons:
+    spring: { start-chance: 0.03,  end-chance: 0.10, min-minutes: 5,  max-minutes: 12, thunder-chance: 0.20 }
+    summer: { start-chance: 0.008, end-chance: 0.25, min-minutes: 3,  max-minutes: 8,  thunder-chance: 0.35 }
+    autumn: { start-chance: 0.07,  end-chance: 0.01, min-minutes: 10, max-minutes: 30, thunder-chance: 0.15 }
+    winter: { start-chance: 0.05,  end-chance: 0.03, min-minutes: 8,  max-minutes: 20, thunder-chance: 0.02 }
+
+world:
+  # Ice, snow and thaw are applied around players and to chunks as they load.
+  scan-radius: 48
+  columns-per-second: 60      # random surface columns checked per player per second
+  chunk-reconcile: true       # bring newly loaded chunks up to date with the season
+  snowfall-chance: 0.5        # per checked column during a winter storm
+  snow-max-layers: 3
+  snow-melt-chance: 0.35
+  snow-melt-start: 0.85       # snow starts melting this far into winter (and all year outside winter)
+  winter-cover-on-load: 0.8   # chance a loaded chunk column gets a snow layer in winter
+  # Biomes whose name contains one of these get no winter snow/ice.
+  no-winter-keywords: [desert, badlands, savanna, jungle, mangrove, warm, mushroom]
+
+growth:
+  # Multiplies the world's randomTickSpeed (restored when the plugin is disabled).
+  # Random ticks drive sapling and crop growth. Set to false to leave the gamerule alone.
+  control-random-tick-speed: true
+  random-tick-multiplier: { spring: 3.0, summer: 2.0, autumn: 0.4, winter: 0.3 }
+  # Chance that a tree growth attempt succeeds (1.0 = always). Bone meal is unaffected.
+  tree-growth-chance: { spring: 1.0, summer: 1.0, autumn: 0.25, winter: 0.06 }
+  bonemeal-affected: false
+  # Chance that a crop growth step succeeds, with per-crop overrides below.
+  crop-growth-chance: { spring: 1.0, summer: 1.0, autumn: 0.6, winter: 0.1 }
+  crop-overrides:
+    WHEAT:        { summer: 0.7, autumn: 1.0, winter: 0.3 }
+    BEETROOTS:    { summer: 0.6, autumn: 1.0, winter: 0.25 }
+    CARROTS:      { autumn: 0.8, winter: 0.15 }
+    POTATOES:     { autumn: 0.8, winter: 0.15 }
+    MELON_STEM:   { spring: 0.6, summer: 1.0, autumn: 0.7, winter: 0.02 }
+    PUMPKIN_STEM: { spring: 0.6, summer: 0.8, autumn: 1.0, winter: 0.02 }
+    SWEET_BERRY_BUSH: { winter: 0.0 }
+
+spawns:
+  # Chance that a natural animal spawn is allowed (1.0 = vanilla).
+  animal-spawn-chance: { spring: 1.0, summer: 1.0, autumn: 0.35, winter: 0.12 }
+
+consumables:
+  enabled: true
+  # Hot Cocoa = honey bottle + 2 cocoa beans (crafting table, shapeless)
+  hot-cocoa:
+    amount: 14.0
+    seconds: 180
+  # Chilled Melon Drink = honey bottle + snowball + melon slice (crafting table, shapeless)
+  chilled-drink:
+    amount: -14.0
+    seconds: 180

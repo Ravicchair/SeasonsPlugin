@@ -1,0 +1,24 @@
+name: Seasons
+version: '${project.version}'
+main: dev.seasons.SeasonsPlugin
+api-version: '26.2'
+authors: [Seasons]
+description: Four seasons, a temperature system with a HUD, seasonal weather, tree/crop growth and animal spawning.
+
+commands:
+  season:
+    description: Show the current season, or manage the calendar (admin).
+    usage: /season [info|set <season>|skip <days>|reload]
+    aliases: [seasons]
+  temperature:
+    description: Show your body temperature breakdown or change the HUD.
+    usage: /temperature [hud <sidebar|actionbar|off>]
+    aliases: [temp]
+
+permissions:
+  seasons.use:
+    description: Use /season info and /temperature
+    default: true
+  seasons.admin:
+    description: Change the season, skip days, reload the config
+    default: op

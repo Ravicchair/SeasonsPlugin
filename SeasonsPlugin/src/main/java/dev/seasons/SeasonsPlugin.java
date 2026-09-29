@@ -30,8 +30,11 @@ public final class SeasonsPlugin extends JavaPlugin {
         if (getCommand("temperature") != null) {
             getCommand("temperature").setExecutor(new TemperatureCommand(this, temperatureManager));
         }
+        if (getCommand("season") != null) {
+            getCommand("season").setExecutor(new SeasonCommand(this, seasonManager));
+        }
 
-        // Main game tick loop running every second (20 ticks)
+        // Core tick loop running every second (20 ticks)
         Bukkit.getScheduler().runTaskTimer(this, () -> {
             seasonManager.tick();
             temperatureManager.tickAll();
@@ -51,8 +54,6 @@ public final class SeasonsPlugin extends JavaPlugin {
         }
         saveData();
     }
-
-    // --- Data File Management (Fixes getData() and saveData() errors) ---
 
     private void loadDataFile() {
         dataFile = new File(getDataFolder(), "data.yml");
@@ -85,8 +86,6 @@ public final class SeasonsPlugin extends JavaPlugin {
         if (temperatureManager != null) temperatureManager.reload();
         if (hudManager != null) hudManager.reload();
     }
-
-    // --- Getters ---
 
     public SeasonManager getSeasonManager() {
         return seasonManager;

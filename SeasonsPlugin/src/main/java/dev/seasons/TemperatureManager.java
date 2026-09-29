@@ -34,7 +34,7 @@ public class TemperatureManager {
     }
 
     public void setTemperature(Player player, double temp) {
-        playerTemperatures.put(player.getUniqueId(), Math.max(0.0, Math.min(60.0, temp)));
+        playerTemperatures.put(player.getUniqueId(), Math.max(-20.0, Math.min(60.0, temp)));
     }
 
     public double coldThreshold() { return 36.0; }
@@ -60,16 +60,18 @@ public class TemperatureManager {
             if (player.hasPermission("seasons.bypass.temperature")) continue;
 
             Breakdown bd = breakdown(player);
-            double targetTemp = 37.0 + bd.target();
+            double targetTemp = bd.target();
             double currentTemp = bodyTemp(player);
 
-            // Fast body temperature shift toward target
+            // Core shift: move body temp toward environmental target smoothly
             double diff = targetTemp - currentTemp;
-            double change = Math.signum(diff) * Math.min(Math.abs(diff), 1.5);
-            double newTemp = currentTemp + change;
+            if (Math.abs(diff) > 0.1) {
+                double change = Math.signum(diff) * Math.min(Math.abs(diff), 1.5);
+                currentTemp += change;
+                setTemperature(player, currentTemp);
+            }
 
-            setTemperature(player, newTemp);
-            applyEffects(player, newTemp);
+            applyEffects(player, currentTemp, bd.outside());
         }
     }
 
@@ -91,25 +93,27 @@ public class TemperatureManager {
             Season season = seasonManager.getSeason(world);
             if (season != null) {
                 switch (season) {
-                    case SUMMER: seasonMod = 18.0; break;
-                    case SPRING: seasonMod = 10.0; break;
-                    case AUTUMN: seasonMod = -15.0; break;
-                    case WINTER: seasonMod = -30.0; break;
+                    case SUMMER: seasonMod = 15.0; break;
+                    case SPRING: seasonMod = 5.0; break;
+                    case AUTUMN: seasonMod = -10.0; break;
+                    case WINTER: seasonMod = -25.0; break;
                 }
             }
         }
 
         double biomeMod = (loc.getBlock().getTemperature() - 0.5) * 15.0;
+        double heightMod = (loc.getY() > 80) ? -((loc.getY() - 80) / 8.0) : 0.0;
+        
         double armorMod = getArmorTemperatureOffset(player);
-        double heatMod = isNearHeatSource(loc) ? 20.0 : 0.0; // Campfire boost
+        double heatMod = isNearHeatSource(loc) ? 25.0 : 0.0; // Campfire adds massive +25°C
         double wetMod = player.isInWaterOrRain() ? -8.0 : 0.0;
         double drinkMod = playerBuffs.getOrDefault(player.getUniqueId(), 0.0);
 
-        return new Breakdown(seasonMod, biomeMod, armorMod, heatMod, wetMod, drinkMod);
+        return new Breakdown(seasonMod + biomeMod + heightMod, armorMod, heatMod, wetMod, drinkMod);
     }
 
     private boolean isNearHeatSource(Location loc) {
-        int radius = 4;
+        int radius = 5;
         for (int x = -radius; x <= radius; x++) {
             for (int y = -radius; y <= radius; y++) {
                 for (int z = -radius; z <= radius; z++) {
@@ -134,29 +138,31 @@ public class TemperatureManager {
             String name = item.getType().name();
 
             if (name.contains("LEATHER")) {
-                offset += 4.0;
-            } else if (name.contains("NETHERITE") || name.contains("DIAMOND")) {
-                offset += 2.0;
+                offset += 4.0; // +16°C warm boost for full leather set
             } else if (name.contains("CHAINMAIL") || name.contains("IRON")) {
-                offset -= 3.0;
+                offset -= 2.5; // Iron pulls body temp down
+            } else if (name.contains("DIAMOND") || name.contains("NETHERITE")) {
+                offset += 1.0;
             }
         }
         return offset;
     }
 
-    private void applyEffects(Player player, double temp) {
-        PotionEffectType slowEffect = PotionEffectType.getByName("SLOWNESS");
-        PotionEffectType weakEffect = PotionEffectType.getByName("WEAKNESS");
+    private void applyEffects(Player player, double bodyTemp, double ambientTemp) {
+        // Extreme Cold Damage (-15°C outside or lower)
+        if (ambientTemp <= -15.0 || bodyTemp <= 20.0) {
+            player.damage(1.0);
+            player.sendMessage(ChatColor.RED + "You are freezing due to extreme cold!");
+        }
 
-        if (temp < coldThreshold()) {
-            if (slowEffect != null) player.addPotionEffect(new PotionEffect(slowEffect, 60, 0, false, false));
-            if (temp < 30.0) {
-                player.damage(1.0);
-                player.sendMessage(ChatColor.RED + "You are freezing!");
-            }
-        } else if (temp > hotThreshold()) {
-            if (weakEffect != null) player.addPotionEffect(new PotionEffect(weakEffect, 60, 0, false, false));
-            if (temp > 44.0) {
+        // Cold Threshold Effects (<36°C)
+        if (bodyTemp < coldThreshold()) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.SLOWNESS, 60, 0, false, false));
+        } 
+        // Hot Threshold Effects (>39°C)
+        else if (bodyTemp > hotThreshold()) {
+            player.addPotionEffect(new PotionEffect(PotionEffectType.HUNGER, 60, 0, false, false));
+            if (bodyTemp > 45.0) {
                 player.damage(1.0);
                 player.sendMessage(ChatColor.RED + "You are overheating!");
             }
@@ -164,27 +170,25 @@ public class TemperatureManager {
     }
 
     public static class Breakdown {
-        private final double seasonMod;
-        private final double biomeMod;
+        private final double environmentMod;
         private final double armorMod;
         private final double heatMod;
         private final double wetMod;
         private final double drinkMod;
 
-        public Breakdown(double seasonMod, double biomeMod, double armorMod, double heatMod, double wetMod, double drinkMod) {
-            this.seasonMod = seasonMod;
-            this.biomeMod = biomeMod;
+        public Breakdown(double environmentMod, double armorMod, double heatMod, double wetMod, double drinkMod) {
+            this.environmentMod = environmentMod;
             this.armorMod = armorMod;
             this.heatMod = heatMod;
             this.wetMod = wetMod;
             this.drinkMod = drinkMod;
         }
 
-        public double outside() { return seasonMod + biomeMod; }
+        public double outside() { return 37.0 + environmentMod; }
         public double armor() { return armorMod; }
         public double sources() { return heatMod; }
         public double wet() { return wetMod; }
         public double drink() { return drinkMod; }
-        public double target() { return outside() + armor() + sources() + wet() + drink(); }
+        public double target() { return outside() + armorMod + heatMod + wetMod + drinkMod; }
     }
 }

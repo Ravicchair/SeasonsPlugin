@@ -40,6 +40,7 @@ public final class HudManager {
     private static final int SEGMENTS = 10;
     private static final double BAR_MIN = -20.0;
     private static final double BAR_MAX = 50.0;
+
     // temperature, r, g, b
     private static final double[][] STOPS = {
             {-20, 90, 110, 255},
@@ -97,16 +98,18 @@ public final class HudManager {
     }
 
     private void update(Player p) {
-        Double temp = temps.bodyTemp(p);
+        double bodyTemp = temps.bodyTemp(p);
         TemperatureManager.Breakdown bd = temps.breakdown(p);
         Mode mode = mode(p);
-        if (temp == null || bd == null || mode == Mode.OFF) {
+
+        if (bd == null || mode == Mode.OFF) {
             clearSidebar(p);
             return;
         }
+
         Season season = seasons.season();
-        if (mode == Mode.SIDEBAR && showSidebar(p, temp, bd, season)) return;
-        p.sendActionBar(actionBar(temp, season));
+        if (mode == Mode.SIDEBAR && showSidebar(p, bodyTemp, bd, season)) return;
+        p.sendActionBar(actionBar(bodyTemp, bd.outside(), season));
     }
 
     private boolean showSidebar(Player p, double temp, TemperatureManager.Breakdown bd, Season season) {
@@ -116,7 +119,6 @@ public final class HudManager {
         Scoreboard board = boards.get(id);
 
         if (board == null) {
-            // Another plugin owns this player's scoreboard: don't fight it.
             if (p.getScoreboard() != main) return false;
             board = sm.getNewScoreboard();
             Objective created = board.registerNewObjective(OBJECTIVE, Criteria.DUMMY,
@@ -136,16 +138,19 @@ public final class HudManager {
             return false;
         }
 
+        double outside = bd.outside();
+
         Component[] lines = {
                 join(Component.text(season.symbol() + " " + season.displayName(), season.color(), TextDecoration.BOLD),
                         Component.text("  Day " + seasons.dayOfSeason() + "/" + seasons.seasonLength(), NamedTextColor.GRAY)),
                 join(Component.text("Body  ", NamedTextColor.GRAY),
                         Component.text(fmt(temp), colorAt(temp), TextDecoration.BOLD)),
                 bar(temp),
-                join(Component.text(status(temp), colorAt(temp))),
+                join(Component.text(status(temp, outside), colorAt(temp))),
                 join(Component.text("Outside  ", NamedTextColor.GRAY),
-                        Component.text(fmt(bd.outside()), colorAt(bd.outside())))
+                        Component.text(fmt(outside), colorAt(outside)))
         };
+
         for (int i = 0; i < lines.length; i++) {
             Score score = obj.getScore(ENTRIES[i]);
             score.setScore(lines.length - i);
@@ -154,12 +159,12 @@ public final class HudManager {
         return true;
     }
 
-    private Component actionBar(double temp, Season season) {
+    private Component actionBar(double temp, double outside, Season season) {
         return join(
                 Component.text(season.symbol() + " " + season.displayName() + "  ", season.color()),
                 bar(temp),
                 Component.text("  " + fmt(temp), colorAt(temp), TextDecoration.BOLD),
-                Component.text("  " + status(temp), colorAt(temp)));
+                Component.text("  " + status(temp, outside), colorAt(temp)));
     }
 
     // ------------------------------------------------------------- rendering
@@ -187,15 +192,17 @@ public final class HudManager {
         return b.build();
     }
 
-    private String status(double t) {
+    private String status(double bodyTemp, double outsideTemp) {
         double cold = temps.coldThreshold();
         double hot = temps.hotThreshold();
-        if (t < cold - 15) return "Freezing";
-        if (t < cold) return "Cold";
-        if (t < cold + 8) return "Chilly";
-        if (t < hot - 6) return "Comfortable";
-        if (t < hot) return "Warm";
-        if (t < hot + 8) return "Hot";
+
+        if (outsideTemp <= -15.0 || bodyTemp <= 20.0) return "Freezing (Damage)";
+        if (bodyTemp < cold - 10.0) return "Freezing";
+        if (bodyTemp < cold) return "Cold";
+        if (bodyTemp < cold + 1.5) return "Chilly";
+        if (bodyTemp < hot - 1.5) return "Comfortable";
+        if (bodyTemp < hot) return "Warm";
+        if (bodyTemp < hot + 6.0) return "Hot";
         return "Scorching";
     }
 
